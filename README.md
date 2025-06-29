@@ -113,7 +113,7 @@ ASPPNeXt/
 ### Prerequisites
 - Python 3.8+
 - CUDA-compatible GPU (recommended)
-- 16GB+ RAM
+- 4GB+ RAM
 
 ### Dependencies
 ```bash
