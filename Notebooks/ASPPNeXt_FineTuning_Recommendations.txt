@@ -1,0 +1,131 @@
+# ASPPNeXt Fine-Tuning Recommendations for >95.18% Accuracy
+
+## 1. Learning Rate Scheduler
+Add a scheduler for more effective convergence. CosineAnnealingLR or ReduceLROnPlateau work well.
+
+```python
+# After optimizer definition:
+from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
+
+# Option 1: Cosine Annealing
+scheduler = CosineAnnealingLR(optimizer, T_max=10, eta_min=1e-7)
+# Option 2: Reduce LR on Plateau
+scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=4, min_lr=1e-7)
+```
+Call `scheduler.step(val_loss)` at the end of each epoch.
+
+## 2. Data Augmentation (Stronger)
+Increase data variability to prevent overfitting.
+
+```python
+from torchvision import transforms
+
+strong_aug = transforms.Compose([
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomVerticalFlip(),
+    transforms.RandomRotation(degrees=20),
+    transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.1),
+    transforms.RandomResizedCrop((384, 512), scale=(0.8, 1.0)),
+    transforms.GaussianBlur(3, sigma=(0.1, 2.0))
+])
+# Apply to training images in __getitem__
+```
+
+## 3. Use Exponential Moving Average (EMA) of Weights
+EMA can stabilize training and improve validation accuracy.
+
+```python
+from torch_ema import ExponentialMovingAverage
+ema = ExponentialMovingAverage(model.parameters(), decay=0.995)
+# After optimizer.step()
+ema.update()
+# For validation:
+with ema.average_parameters():
+    # validate()
+```
+
+## 4. Mix Loss Functions
+Combine Focal Tversky with Dice Loss or BCE for better gradient signals.
+
+```python
+class ComboLoss(nn.Module):
+    def __init__(self, alpha=0.5):
+        super().__init__()
+        self.ft = FocalTverskyLoss()
+        self.dice = DiceLoss()
+        self.alpha = alpha
+    def forward(self, pred, target):
+        return self.alpha * self.ft(pred, target) + (1 - self.alpha) * self.dice(pred, target)
+```
+
+## 5. Early Stopping
+Avoid overfitting by stopping when validation loss plateaus.
+
+```python
+# Pseudocode
+best_loss = float('inf')
+patience = 10
+wait = 0
+for epoch in range(num_epochs):
+    ...
+    if val_loss < best_loss:
+        best_loss = val_loss
+        wait = 0
+    else:
+        wait += 1
+    if wait > patience:
+        print("Early stopping!")
+        break
+```
+
+## 6. Increase Model Capacity (if underfitting)
+Increase `base_dim`, `decoder_channels`, or `num_heads`.
+
+```python
+model = ASPPNeXtModel(
+    base_dim=48,            # was 32
+    decoder_channels=[384, 192, 96],
+    num_heads=(2, 4, 8, 16)
+)
+```
+
+## 7. Add Dropout Regularization
+Add dropout layers to reduce overfitting.
+
+```python
+# In ASPPNeXtModel/Decoder/OutputLayer modules, add:
+nn.Dropout2d(p=0.3)
+```
+
+## 8. Use Stochastic Weight Averaging (SWA)
+Averaging weights across epochs can yield better generalization.
+
+```python
+from torch.optim.swa_utils import AveragedModel, SWALR
+
+swa_model = AveragedModel(model)
+swa_scheduler = SWALR(optimizer, swa_lr=3e-5)
+# During training (after some epochs):
+swa_model.update_parameters(model)
+swa_scheduler.step()
+# At end, swap model weights with swa_model
+model.load_state_dict(swa_model.state_dict())
+```
+
+## 9. Tune Batch Size
+Increase batch size if memory allows for smoother gradients.
+
+```python
+batch_size = 8  # or 16, if possible
+```
+
+## 10. Hard Example Mining (optional)
+Focus loss on hard pixels.
+
+```python
+# In loss function, weigh pixels with high error more.
+```
+
+---
+
+Apply these strategies incrementally, monitoring both loss curves and accuracy. The most impactful for rapid convergence and accuracy gain are: scheduler, augmentation, EMA/SWA, loss mixing, and capacity tuning.

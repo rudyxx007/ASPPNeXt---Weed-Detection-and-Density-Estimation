@@ -1,0 +1,151 @@
+
+✅ 1. Avoid Bottlenecks in compute_metrics()
+Your current compute_metrics() slows training because:
+
+It calls argmax → numpy() → scikit-learn functions for every single batch.
+
+CPU-based metrics like confusion_matrix, precision_score, etc., are slow in loop.
+
+🔥 Solution: Move all batch-level metrics to be evaluated only once per epoch using T.cat() or np.concatenate() and calculate them all at once.
+python
+Copy
+Edit
+# During training
+all_preds = []
+all_targets = []
+
+for img, depth, mask in train_pbar:
+    ...
+    outputs = model(img, depth)
+    preds = outputs.argmax(1).detach().cpu().numpy().flatten()
+    targs = mask.detach().cpu().numpy().flatten()
+    all_preds.append(preds)
+    all_targets.append(targs)
+
+# After the loop:
+all_preds = np.concatenate(all_preds)
+all_targets = np.concatenate(all_targets)
+metrics = compute_metrics_np(all_preds, all_targets)
+You'll easily get 2×–5× speedup from this alone.
+
+✅ 2. Use torchmetrics (GPU-Compatible)
+Instead of scikit-learn, use torchmetrics, which runs on GPU and avoids .cpu().numpy() overhead. For example:
+
+python
+Copy
+Edit
+from torchmetrics.classification import BinaryAccuracy
+
+accuracy = BinaryAccuracy().to(device)
+
+with T.no_grad():
+    for img, depth, mask in val_loader:
+        logits = model(img, depth)
+        preds = T.argmax(logits, dim=1)
+        acc = accuracy(preds, mask)
+This reduces CPU-GPU transfers and improves speed.
+
+✅ 3. Dataloader Optimizations
+On Kaggle, you're allowed to use num_workers > 0 now. Set:
+
+python
+Copy
+Edit
+DataLoader(..., num_workers=2, pin_memory=True, prefetch_factor=2)
+pin_memory=True: Helps faster CPU→GPU transfers.
+
+prefetch_factor=2: Helps load batches ahead of time.
+
+✅ 4. Minimize T.cuda.empty_cache()
+You’re calling this inside every batch. This can slow training because it clears CUDA memory allocator, forcing reallocation.
+
+✅ Keep it only once per epoch, like:
+python
+Copy
+Edit
+# after epoch ends
+T.cuda.empty_cache()
+Remove it from the per-batch loop.
+
+✅ 5. Reduce Logging Overhead
+While tqdm is useful, heavy logging slows down training. Minimize:
+
+Reduce per-batch set_postfix() usage or update it every N batches only.
+
+python
+Copy
+Edit
+if batch_idx % 10 == 0:
+    train_pbar.set_postfix(loss=f"{loss.item():.4f}")
+✅ 6. Mixed Precision Training (AMP)
+AMP can cut memory use by ~50% and often double speed.
+
+python
+Copy
+Edit
+scaler = T.cuda.amp.GradScaler()
+
+for img, depth, mask in train_loader:
+    with T.cuda.amp.autocast():
+        outputs = model(img, depth)
+        loss = loss_fn(outputs, mask)
+
+    scaler.scale(loss).backward()
+    scaler.step(optimizer)
+    scaler.update()
+    optimizer.zero_grad()
+Add model, optimizer = model.to(device), optimizer before that. Wrap validation with autocast() too.
+
+✅ 7. Use Lighter Metrics for Now
+During development, temporarily skip expensive metrics like IoU/F1, or compute them only for validation.
+
+✅ 8. Disable Validation on Early Epochs
+You can skip validation every few epochs early on:
+
+python
+Copy
+Edit
+if epoch % 3 == 0:
+    run_validation()
+✅ 9. Profile Training
+Use this at the top to find bottlenecks:
+
+python
+Copy
+Edit
+%load_ext line_profiler
+%lprun -f train_model train_model()
+🔥 Bonus: Consider Gradient Accumulation Instead of Big Batches
+If memory is tight, but you want to simulate big batches:
+
+python
+Copy
+Edit
+accum_steps = 2
+loss = loss_fn(outputs, mask) / accum_steps
+loss.backward()
+
+if (batch_idx + 1) % accum_steps == 0:
+    optimizer.step()
+    optimizer.zero_grad()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

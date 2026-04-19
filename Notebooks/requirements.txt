@@ -1,0 +1,10 @@
+numpy
+opencv-python-headless
+matplotlib
+scikit-learn
+scikit-image
+tensorflow
+torch
+torchvision
+efficientnet-pytorch
+segmentation-models-pytorch

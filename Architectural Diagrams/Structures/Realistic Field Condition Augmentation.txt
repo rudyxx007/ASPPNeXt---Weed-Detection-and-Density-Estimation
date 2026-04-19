@@ -1,0 +1,29 @@
+                         ┌────────────────────────────┐
+                         │   Original CWF-788 Dataset │
+                         │ (Train / Test / Validation)│
+                         └─────────────┬──────────────┘
+                                       │
+                                       ▼
+                 ┌──────────────────────────────────────────┐
+                 │  Albumentations Augmentation Pipeline     │
+                 │------------------------------------------│
+                 │ • Weather Effects → RandomSunFlare, Rain, Fog  │
+                 │ • Geometric → Rotate90, Flip, Affine            │
+                 │ • Noise & Distortion → ElasticTransform, ISONoise│
+                 │ • Occlusion → CoarseDropout, Cutout (optional)   │
+                 │ • Resize → 384 × 512                             │
+                 └──────────────────────────────────────────┘
+                                       │
+                                       ▼
+         ┌────────────────────────────────────────────────────────┐
+         │ Augmented Image Set (CWF-788 AugSet)                   │
+         │ • Realistic lighting / shadows                         │
+         │ • Simulated field occlusions and motion blur           │
+         │ • 2× data expansion (original + augmented)             │
+         └────────────────────────────────────────────────────────┘
+                                       │
+                                       ▼
+               ┌───────────────────────────────────────┐
+               │  Input for Model Training Pipelines                                         │
+               │  (Crop Segmentation & Subsequent Parts)│
+               └───────────────────────────────────────┘

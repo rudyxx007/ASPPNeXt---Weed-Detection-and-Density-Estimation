@@ -1,0 +1,43 @@
+// Weed Detection System Architecture
+digraph Weed_Detection_System_Architecture {
+	fontsize=20 label="Weed Detection System Architecture" rankdir=LR size="12,12"
+	input [label="Agricultural Image" fillcolor="#E3F2FD" fontname=Helvetica fontsize=10 shape=box style="rounded,filled"]
+	subgraph cluster_1 {
+		color=blue label="Module 1: Vegetation Segmentation" style=rounded
+		veg_segmentation [label="Ensemble of 12 VIs\nWeighted Fusion\nMulti-Otsu Thresholding" fillcolor="#BBDEFB" fontname=Helvetica fontsize=12 shape=box style="rounded,filled"]
+		veg_time [label="15ms" shape=plaintext]
+	}
+	subgraph cluster_2 {
+		color=blue label="Module 2: Field Conditioning" style=rounded
+		field_cond [label="Environmental & Geometric Augmentations" fillcolor="#BBDEFB" fontname=Helvetica fontsize=12 shape=box style="rounded,filled"]
+		field_expand [label="4x Dataset Expansion" shape=plaintext]
+	}
+	subgraph cluster_3 {
+		color=blue label="Module 3: Crop Masking" style=rounded
+		crop_masking [label="UNet + EfficientNet-B5\nSCSE Attention" fillcolor="#90CAF9" fontname=Helvetica fontsize=12 shape=box style="rounded,filled"]
+		crop_accuracy [label="99.43% Accuracy" shape=plaintext]
+	}
+	subgraph cluster_4 {
+		color=blue label="Module 4: Weed Detection" style=rounded
+		weed_detection [label="Logic-based Mask Subtraction\n(Vegetation - Crop)" fillcolor="#BBDEFB" fontname=Helvetica fontsize=12 shape=box style="rounded,filled"]
+		weed_time [label="<1ms" shape=plaintext]
+	}
+	subgraph cluster_5 {
+		color=blue label="Module 5: Depth Features" style=rounded
+		depth_features [label="MiDaS DPT-Large\nMonocular Depth Estimation" fillcolor="#90CAF9" fontname=Helvetica fontsize=12 shape=box style="rounded,filled"]
+	}
+	subgraph cluster_6 {
+		color=blue label="Module 6: ASPPNeXt" style=rounded
+		asppnext [label="Dual-encoder Architecture\nDAAF Fusion" fillcolor="#42A5F5" fontname=Helvetica fontsize=12 shape=box style="rounded,filled"]
+	}
+	input -> veg_segmentation
+	veg_segmentation -> field_cond
+	field_cond -> crop_masking
+	veg_segmentation -> weed_detection
+	crop_masking -> weed_detection
+	input -> depth_features
+	weed_detection -> asppnext
+	depth_features -> asppnext
+	asppnext -> output [label="Weed Mask"]
+	output [label="Final Weed Mask" fillcolor="#64B5F6" fontname=Helvetica fontsize=12 shape=box style="rounded,filled"]
+}
